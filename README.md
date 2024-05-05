@@ -1,70 +1,68 @@
-# Getting Started with Create React App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Co-op Game Admin Panel React Application
+========================================
 
-## Available Scripts
+Introduction
+------------
 
-In the project directory, you can run:
+This repository hosts the React frontend for the Admin Panel of the Co-op Game project. This application is designed to manage game settings, user data, and analytics, enhancing the administrative capabilities for game researchers and developers. It utilizes modern web technologies to ensure a responsive and user-friendly interface.
 
-### `npm start`
+Docker Configuration
+--------------------
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+The Dockerfile sets up the environment required to run the admin panel inside a Docker container, utilizing Node.js version 14 (slim version) as its base.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Highlights:
 
-### `npm test`
+* **Base Image**: Utilizes `node:14-slim` for a minimal footprint.
+* **Working Directory**: Establishes `/usr/src/app` as the primary workspace.
+* **Application Files**: Transfers the entire application into the container.
+* **Dependency Management**: Installs necessary dependencies and serves the application using `serve`.
+* **Port Configuration**: Configures the application to run on port `4200`, prepared for web traffic.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Deploying with Docker to Google Cloud Platform (GCP)
+----------------------------------------------------
 
-### `npm run build`
+Follow these steps to deploy the Co-op Game Admin Panel React Application using Docker:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. **Build the Docker Image**
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+   ```bash
+   docker build -t coopgame-admin-panel .
+   ```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+2. **Tag the Image for GCP Artifact Registry**
+   Replace `<project-id>` and `<repo-name>` with your GCP Project ID and Artifact Registry repository name.
 
-### `npm run eject`
+   ```bash
+   docker tag coopgame-admin-panel:latest europe-docker.pkg.dev/<project-id>/<repo-name>/admin-panel:latest
+   ```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+3. **Push the Image to GCP Artifact Registry**
+   Authenticate Docker with GCP and push the image.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+   ```bash
+   gcloud auth configure-docker europe-docker.pkg.dev
+   docker push europe-docker.pkg.dev/<project-id>/<repo-name>/admin-panel:latest
+   ```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Continuous Integration and Deployment (CI/CD) with GitHub Actions
+-----------------------------------------------------------------
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+GitHub Actions automates the CI/CD process for testing, building, and deploying the application.
 
-## Learn More
+### Workflow Overview:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+* **On Push to Main Branch**: Activates the workflow when changes are pushed to the `main` branch.
+* **Build Step**: Installs dependencies and compiles a production build of the React application.
+* **Dockerize and Push**: Constructs a Docker image from the Dockerfile, tags it, and uploads it to Google Cloud Artifact Registry.
+* **Deploy to Cloud Run**: Deploys the application to Google Cloud Run using the Docker image, making it available online.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Key GitHub Actions Used:
 
-### Code Splitting
+* `actions/checkout@v2`: Checks out the code for the GitHub repository.
+* `actions/setup-node@v2`: Prepares the Node.js environment.
+* `google-github-actions/setup-gcloud@v0.2.1`: Sets up the Google Cloud environment.
+* Custom steps for Docker build and deployment.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+This CI/CD pipeline streamlines the development and deployment processes, allowing for swift updates and ensuring consistent, error-free deployments.
