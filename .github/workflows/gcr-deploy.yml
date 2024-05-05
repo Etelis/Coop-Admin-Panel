@@ -1,0 +1,62 @@
+name: Google Cloud Run Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to Google Cloud Run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14.x' # Ensure this matches the version used in your Dockerfile
+
+      - name: Cache node_modules
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Production
+        run: npm run build
+        env: 
+          CI: false # This line sets the CI environment variable to false
+
+      - name: Setup GCloud Auth
+        uses: google-github-actions/auth@v0.4.0
+        with:
+          credentials_json: ${{ secrets.GCR_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0.2.1
+        with:
+          version: 'latest'
+          export_default_credentials: true # Change this to true to automatically authenticate subsequent gcloud commands
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+
+
+      - name: Build & Push Docker Image to Google Artifact Registry
+        run: gcloud builds submit --quiet --tag "europe-docker.pkg.dev/co-op-world-game/coop-game-prolific/prolific-survey:latest" .
+        working-directory: . # Specifies the root of your repository
+
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "prolific-survey" --quiet \
+            --region "europe-central2" \
+            --image "europe-docker.pkg.dev/co-op-world-game/coop-game-prolific/prolific-survey:latest" \
+            --platform "managed" \
+            --allow-unauthenticated
