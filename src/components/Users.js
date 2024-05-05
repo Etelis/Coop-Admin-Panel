@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import axios from 'axios';
-import { useSelector } from 'react-redux'; // Import useSelector for accessing Redux state
 import {
   Button, Checkbox, Container, Box, TextField, Typography, Paper, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, FormControlLabel
 } from '@mui/material';
 import { useTable, useGlobalFilter, useRowSelect, useFilters, useSortBy } from 'react-table';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
+import { useSelector } from 'react-redux';
 
 // Individual column filter input component
 const ColumnFilter = ({ column: { filterValue, setFilter }, label }) => (
@@ -17,8 +17,9 @@ const ColumnFilter = ({ column: { filterValue, setFilter }, label }) => (
     placeholder={`Search ${label}`}
     value={filterValue || ''}
     onChange={(e) => setFilter(e.target.value || undefined)}
-    sx={{ width: '100%' }}/>
-  )
+    sx={{ width: '100%' }}
+  />
+);
 
 const tableStyles = {
   table: {
@@ -28,9 +29,6 @@ const tableStyles = {
     backgroundColor: '#f9f9f9',
   },
   header: {
-    position: 'sticky',
-    top: 0, // keep headers at the top
-    zIndex: 1,
     borderBottom: '2px solid #ddd',
     borderRight: '1px solid #ddd',
     backgroundColor: '#e0e0e0',
@@ -52,9 +50,14 @@ const tableStyles = {
 };
 
 const Users = () => {
-  const experimenter_names = useSelector(state => state.auth.experimenterInfo.names); // Fetch names from Redux
+  const experimenterInfo = useSelector(state => state.auth.experimenterInfo); // Use useSelector to access Redux state
+  const experimenter_names = experimenterInfo ? experimenterInfo.names : [];
   const [data, setData] = useState([]);
+  const [createdData, setCreatedData] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [userCount, setUserCount] = useState('');
+  const [grade, setGrade] = useState('');
+  const [language, setLanguage] = useState('');
   const [includeNonPlayed, setIncludeNonPlayed] = useState(false);
 
   useEffect(() => {
@@ -64,7 +67,6 @@ const Users = () => {
           experimenters: experimenter_names,
           filter_non_played: !includeNonPlayed
         });
-
         const fetchedData = Object.keys(response.data).map((key, index) => ({
           id: index + 1,
           user_id: response.data[key].user_id,
@@ -73,14 +75,14 @@ const Users = () => {
           grade: response.data[key].grade,
         }));
         setData(fetchedData);
-      } catch (error) {
+      } catch ( error ) {
         console.error('Error fetching data:', error);
       }
     };
 
     fetchData();
   }, [experimenter_names, includeNonPlayed]);
-
+  
   // Define columns using `useMemo`
   const columns = useMemo(
     () => [
@@ -137,6 +139,36 @@ const Users = () => {
     }
   );
 
+  // Initialize table instance for created data
+  const createdColumns = useMemo(
+    () => [
+      {
+        Header: 'User ID',
+        accessor: 'user_id',
+      },
+      {
+        Header: 'Levels Played',
+        accessor: 'levels_played',
+      },
+      {
+        Header: 'Experimenter',
+        accessor: 'experimenter',
+      },
+      {
+        Header: 'Grade',
+      },
+    ],
+    []
+  );
+
+  const {
+    getTableProps: getCreatedTableProps,
+    getTableBodyProps: getCreatedTableBodyProps,
+    headerGroups: createdHeaderGroups,
+    rows: createdRows,
+    prepareRow: prepareCreatedRow,
+  } = useTable({ columns: createdColumns, data: createdData });
+
   // Export selected rows to CSV
   const exportSelectedRows = () => {
     const selectedRowsData = selectedFlatRows.map((row) => row.original);
@@ -148,9 +180,48 @@ const Users = () => {
     saveAs(blob, 'selected_users.xlsx');
   };
 
-  // Checkbox to include users that have not played yet
-  const handleCheckboxChange = (event) => {
-    setIncludeNonPlayed(event.target.checked);
+  // Handle user creation
+  const handleCreateUsers = async () => {
+    setCreatedData([]);
+    try {
+      const response = await axios.post(
+        'https://europe-central2-co-op-world-game.cloudfunctions.net/createUsers',
+        null,
+        {
+          params: {
+            experimenter: experimenter_names[0],
+            grade,
+            language,
+            num: userCount,
+          },
+        }
+      );
+
+      // Prepare the data for CSV export
+      const newCreatedData = response.data.map((id) => ({
+        user_id: id,
+        levels_played: 0,
+        experimenter: experimenter_names[0],
+        grade,
+      }));
+
+      // Update the data state
+      setCreatedData([...createdData, ...newCreatedData]);
+      setData([...data, ...newCreatedData]);
+
+      // Create and download CSV
+      const worksheet = XLSX.utils.json_to_sheet(newCreatedData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Created Users');
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+      saveAs(blob, 'created_users.xlsx');
+
+      // Close the dialog
+      setDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating users:', error);
+    }
   };
 
   return (
@@ -220,13 +291,107 @@ const Users = () => {
           >
             Create Users
           </Button>
+          
         </Box>
-        <FormControlLabel
-          control={<Checkbox checked={includeNonPlayed} onChange={handleCheckboxChange} />}
-          label="Include Inactive Users "
-        />
+        <Box display="flex" justifyContent="flex-start" mt={3}>
+          <FormControlLabel
+            control={<Checkbox checked={includeNonPlayed} onChange={(e) => setIncludeNonPlayed(e.target.checked)} />}
+            label="Include Inactive Users"
+          />
+        </Box>
       </Paper>
+
+      {/* Create Users Dialog */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+        <DialogTitle>Create Users</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="Number of Users"
+            type="number"
+            value={userCount}
+            onChange={(e) => setUserCount(e.target.value)}
+            fullWidth
+            margin="dense"
+            inputProps={{ min: 1, max: 100 }}
+          />
+          <TextField
+            label="Grade"
+            value={grade}
+            onChange={(e) => setGrade(e.target.value)}
+            fullWidth
+            margin="dense"
+            select
+          >
+            <MenuItem value="Kindergarten">Kindergarten</MenuItem>
+            <MenuItem value="1st">1st</MenuItem>
+            <MenuItem value="2nd">2nd</MenuItem>
+            <MenuItem value="3th">3th</MenuItem>
+            <MenuItem value="4th">4th</MenuItem>
+            <MenuItem value="5th">5th</MenuItem>
+            <MenuItem value="6th">6th</MenuItem>
+            <MenuItem value="6th">7th</MenuItem>
+            {/* Add more grades as needed */}
+          </TextField>
+          <TextField
+            label="Language"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            fullWidth
+            margin="dense"
+            select
+          >
+            <MenuItem value="Hebrew">Hebrew</MenuItem>
+            <MenuItem value="Macedonian">Macedonian</MenuItem>
+            <MenuItem value="English">English</MenuItem>
+            <MenuItem value="Arabic">Arabic</MenuItem>
+            {/* Add more languages as needed */}
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleCreateUsers} color="secondary">
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
       
+      {/* Display Created Users in a Table */}
+      {createdData.length > 0 && (
+        <Paper elevation={3} sx={{ p: 3, my: 4 }}>
+          <Typography variant="h6">Created Users</Typography>
+          <Box sx={{ overflow: 'auto', maxHeight: '400px' }}>
+            <table {...getCreatedTableProps()} style={tableStyles.table}>
+              <thead>
+                {createdHeaderGroups.map((headerGroup) => (
+                  <tr {...headerGroup.getHeaderGroupProps()}>
+                    {headerGroup.headers.map((column) => (
+                      <th {...column.getHeaderProps()} style={tableStyles.header}>
+                        {column.render('Header')}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody {...getCreatedTableBodyProps()}>
+                {createdRows.map((row) => {
+                  prepareCreatedRow(row);
+                  return (
+                    <tr {...row.getRowProps()}>
+                      {row.cells.map((cell) => (
+                        <td {...cell.getCellProps()} style={tableStyles.cell}>
+                          {cell.render('Cell')}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Box>
+        </Paper>
+      )}
     </Container>
   );
 };
