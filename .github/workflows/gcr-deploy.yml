@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '14.x' # Ensure this matches the version used in your Dockerfile
+          node-version: '14.x'
 
       - name: Cache node_modules
         uses: actions/cache@v2
@@ -32,31 +32,30 @@ jobs:
       - name: Build Production
         run: npm run build
         env: 
-          CI: false # This line sets the CI environment variable to false
+          CI: false
 
       - name: Setup GCloud Auth
         uses: google-github-actions/auth@v0.4.0
         with:
-          credentials_json: ${{ secrets.GCR_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v0.2.1
         with:
           version: 'latest'
-          export_default_credentials: true # Change this to true to automatically authenticate subsequent gcloud commands
+          export_default_credentials: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
 
-
       - name: Build & Push Docker Image to Google Artifact Registry
-        run: gcloud builds submit --quiet --tag "europe-docker.pkg.dev/co-op-world-game/coop-game-prolific/prolific-survey:latest" .
-        working-directory: . # Specifies the root of your repository
-
+        run: |
+          gcloud builds submit --quiet --tag "europe-docker.pkg.dev/co-op-world-game/coop-admin-panel/admin-panel:${{ github.sha }}" .
+        working-directory: .
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy "prolific-survey" --quiet \
+          gcloud run deploy "admin-panel" --quiet \
             --region "europe-central2" \
-            --image "europe-docker.pkg.dev/co-op-world-game/coop-game-prolific/prolific-survey:latest" \
+            --image "europe-docker.pkg.dev/co-op-world-game/coop-admin-panel/admin-panel:${{ github.sha }}" \
             --platform "managed" \
             --allow-unauthenticated
