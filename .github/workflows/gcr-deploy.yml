@@ -55,7 +55,7 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy "prolific-survey" --quiet \
+          gcloud run deploy "admin-panel" --quiet \
             --region "europe-central2" \
             --image "europe-docker.pkg.dev/co-op-world-game/coop-admin-panel/adim-panel:latest" \
             --platform "managed" \
